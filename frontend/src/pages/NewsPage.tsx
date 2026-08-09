@@ -16,7 +16,7 @@ export const NewsPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<{ items: NewsItem[] }>(`/news/feed?symbol=${activeSymbol}&limit=30`);
+      const res = await apiClient.get<{ items: NewsItem[] }>(`/news/feed?symbol=${activeSymbol}&limit=15`);
       setNews(res.data.items || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to load news feed');

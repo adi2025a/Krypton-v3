@@ -19,11 +19,17 @@ RSS_FEEDS = {
     "Crypto.news": "https://crypto.news/feed/",
 }
 
+# Cap entries taken per feed -- RSS feeds are already ordered newest-first,
+# and no caller ever needs more than a couple dozen recent items per source
+# to rank. Without this, a feed with a large backlog gets fully parsed into
+# memory even though only the top few items will ever be used downstream.
+MAX_ENTRIES_PER_FEED = 25
+
 
 def _parse_one_feed(source_name: str, url: str) -> list[dict]:
     parsed = feedparser.parse(url)
     items = []
-    for entry in parsed.entries:
+    for entry in parsed.entries[:MAX_ENTRIES_PER_FEED]:
         title = getattr(entry, "title", "").strip()
         summary = getattr(entry, "summary", "").strip()
         link = getattr(entry, "link", "")

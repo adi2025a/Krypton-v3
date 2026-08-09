@@ -17,7 +17,7 @@ export const DashboardPage: React.FC = () => {
     setLoadingNews(true);
     setNewsError(null);
     try {
-      const res = await apiClient.get<{ items: NewsItem[] }>(`/news/feed?symbol=${activeSymbol}&limit=12`);
+      const res = await apiClient.get<{ items: NewsItem[] }>(`/news/feed?symbol=${activeSymbol}&limit=7`);
       setNews(res.data.items || []);
     } catch (err: any) {
       setNewsError(err.response?.data?.detail || 'Failed to fetch news feed');
