@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -16,5 +16,14 @@ apiClient.interceptors.request.use((config) => {
   }
   return config;
 });
+
+/**
+ * Fires a GET /health request without blocking or throwing.
+ * Used to wake up the backend as early as possible on a Render free-tier
+ * cold start, well before the user reaches a page that needs real data.
+ */
+export const pingHealth = (): void => {
+  apiClient.get('/health').catch(() => {});
+};
 
 export default apiClient;

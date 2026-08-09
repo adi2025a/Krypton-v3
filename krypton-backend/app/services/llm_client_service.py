@@ -33,21 +33,36 @@ async def _call_groq(model_name: str, api_key: str, messages: list[ChatMessage])
 
 
 async def _call_gemini(model_name: str, api_key: str, messages: list[ChatMessage]) -> str:
-    import asyncio
-    import google.generativeai as genai
+    from google import genai
 
-    def _sync_call() -> str:
-        genai.configure(api_key=api_key)
-        # Gemini doesn't use OpenAI-style role turns the same way -- we
-        # flatten system+user history into one prompt string. Fine for
-        # our use case (single-shot synthesis calls, not multi-turn chat).
-        prompt_parts = [f"[{m['role'].upper()}]: {m['content']}" for m in messages]
-        prompt = "\n\n".join(prompt_parts)
-        model = genai.GenerativeModel(model_name)
-        response = model.generate_content(prompt)
-        return response.text
+    # Map deprecated gemini-1.5 / 1.0 models to active gemini-2.5 models
+    target_model = model_name
+    if "1.5-flash" in model_name or "1.0-flash" in model_name:
+        target_model = "gemini-2.5-flash"
+    elif "1.5-pro" in model_name or "1.0-pro" in model_name:
+        target_model = "gemini-2.5-pro"
 
-    return await asyncio.to_thread(_sync_call)
+    prompt_parts = [f"[{m['role'].upper()}]: {m['content']}" for m in messages]
+    prompt = "\n\n".join(prompt_parts)
+
+    client = genai.Client(api_key=api_key)
+    try:
+        response = await client.aio.models.generate_content(
+            model=target_model,
+            contents=prompt,
+        )
+        return response.text or ""
+    except Exception:
+        # Fallback to gemini-2.5-flash if the requested model returns 404
+        if target_model != "gemini-2.5-flash":
+            response = await client.aio.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            )
+            return response.text or ""
+        raise
+
+
 
 
 async def _call_claude(model_name: str, api_key: str, messages: list[ChatMessage]) -> str:
