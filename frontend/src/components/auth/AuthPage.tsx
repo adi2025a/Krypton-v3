@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { getErrorMessage } from '../../utils/error';
 import { ShieldCheck, Mail, Lock, KeyRound, ArrowRight, RefreshCw, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -37,20 +38,21 @@ export const AuthPage: React.FC = () => {
     setSuccessMsg(null);
     setLoading(true);
 
+    const cleanEmail = email.trim();
+
     try {
       if (isLogin) {
         // 1. Login flow
-        await login(email, password);
+        await login(cleanEmail, password);
       } else {
         // 2. Signup flow
-        const msg = await signup(email, password);
+        const msg = await signup(cleanEmail, password);
         setSignupMessage(msg || 'OTP sent to your email.');
         setIsOtpStep(true);
         setResendCooldown(30);
       }
     } catch (err: any) {
-      const msg = err.response?.data?.detail || err.message || 'An error occurred during authentication';
-      setError(msg);
+      setError(getErrorMessage(err, 'An error occurred during authentication'));
     } finally {
       setLoading(false);
     }
@@ -62,19 +64,20 @@ export const AuthPage: React.FC = () => {
     setSuccessMsg(null);
     setLoading(true);
 
+    const cleanEmail = email.trim();
+
     try {
       // 3. Verify OTP route
-      await verifyOtp(email, otp);
+      await verifyOtp(cleanEmail, otp);
       setSuccessMsg('Email verified successfully! Logging you in...');
       
       // Auto login after verify
-      await login(email, password);
+      await login(cleanEmail, password);
       setIsOtpStep(false);
       setShowLLMSetup(true); // Open LLM key input modal for signup
       setShowBinanceSetup(true); // Optional next step
     } catch (err: any) {
-      const msg = err.response?.data?.detail || err.message || 'Invalid or expired OTP';
-      setError(msg);
+      setError(getErrorMessage(err, 'Invalid or expired OTP'));
     } finally {
       setLoading(false);
     }
@@ -86,14 +89,15 @@ export const AuthPage: React.FC = () => {
     setSuccessMsg(null);
     setLoading(true);
 
+    const cleanEmail = email.trim();
+
     try {
       // 4. Resend OTP route
-      const msg = await resendOtp(email);
+      const msg = await resendOtp(cleanEmail);
       setSuccessMsg(msg || 'A new verification OTP has been sent to your email.');
       setResendCooldown(60);
     } catch (err: any) {
-      const msg = err.response?.data?.detail || err.message || 'Failed to resend OTP';
-      setError(msg);
+      setError(getErrorMessage(err, 'Failed to resend OTP'));
     } finally {
       setLoading(false);
     }

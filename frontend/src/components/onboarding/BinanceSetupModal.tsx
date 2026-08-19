@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { getErrorMessage } from '../../utils/error';
 import { ShieldAlert, Key, CheckCircle, RefreshCw, ArrowRight, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -26,8 +27,7 @@ export const BinanceSetupModal: React.FC<{ onClose?: () => void }> = ({ onClose 
         if (onClose) onClose();
       }, 1000);
     } catch (err: any) {
-      const detail = err.response?.data?.detail || err.message || 'Binance key verification failed';
-      setError(detail);
+      setError(getErrorMessage(err, 'Binance key verification failed'));
     } finally {
       setLoading(false);
     }

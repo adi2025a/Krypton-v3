@@ -23,8 +23,9 @@ router = APIRouter()
 
 @router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
 async def signup(payload: SignupRequest, db: AsyncSession = Depends(get_db)):
-    logger.info(f"Signup for {payload.email}")
-    existing = await db.execute(select(User).where(User.email == payload.email))
+    email = payload.email.strip().lower()
+    logger.info(f"Signup for {email}")
+    existing = await db.execute(select(User).where(User.email == email))
     user = existing.scalar_one_or_none()
 
     if user is not None:
@@ -37,7 +38,7 @@ async def signup(payload: SignupRequest, db: AsyncSession = Depends(get_db)):
         user.hashed_password = hash_password(payload.password)
         await db.commit()
     else:
-        user = User(email=payload.email, hashed_password=hash_password(payload.password))
+        user = User(email=email, hashed_password=hash_password(payload.password))
         db.add(user)
         await db.commit()
         await db.refresh(user)
@@ -50,7 +51,8 @@ async def signup(payload: SignupRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/verify-otp", status_code=status.HTTP_200_OK)
 async def verify_signup_otp(payload: VerifyOTPRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == payload.email))
+    email = payload.email.strip().lower()
+    result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -68,7 +70,8 @@ async def verify_signup_otp(payload: VerifyOTPRequest, db: AsyncSession = Depend
 
 @router.post("/resend-otp", status_code=status.HTTP_200_OK)
 async def resend_otp(payload: ResendOTPRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == payload.email))
+    email = payload.email.strip().lower()
+    result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -82,7 +85,8 @@ async def resend_otp(payload: ResendOTPRequest, db: AsyncSession = Depends(get_d
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == payload.email))
+    email = payload.email.strip().lower()
+    result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
     # Same generic error for "no such user" and "wrong password" --

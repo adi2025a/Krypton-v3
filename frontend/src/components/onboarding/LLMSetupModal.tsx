@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { getErrorMessage } from '../../utils/error';
 import { Cpu, Key, CheckCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -40,8 +41,7 @@ export const LLMSetupModal: React.FC<{ onClose?: () => void }> = ({ onClose }) =
         setShowBinanceSetup(true); // Open optional Binance step next
       }, 1000);
     } catch (err: any) {
-      const detail = err.response?.data?.detail || err.message || 'Key validation failed';
-      setError(detail);
+      setError(getErrorMessage(err, 'Key validation failed'));
     } finally {
       setLoading(false);
     }
