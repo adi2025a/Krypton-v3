@@ -19,6 +19,8 @@ interface AuthContextType {
   signup: (email: string, password: string) => Promise<string>;
   verifyOtp: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<string>;
+  forgotPassword: (email: string) => Promise<string>;
+  resetPassword: (email: string, otp: string, newPassword: string) => Promise<string>;
   setLLMKey: (provider: string, modelName: string, apiKey: string) => Promise<void>;
   connectBinance: (apiKey: string, apiSecret: string) => Promise<void>;
   logout: () => void;
@@ -117,6 +119,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return res.data.message;
   };
 
+  const forgotPassword = async (email: string): Promise<string> => {
+    const res = await apiClient.post<{ message: string }>('/auth/forgot-password', { email });
+    return res.data.message;
+  };
+
+  const resetPassword = async (email: string, otp: string, newPassword: string): Promise<string> => {
+    const res = await apiClient.post<{ message: string }>('/auth/reset-password', {
+      email,
+      otp,
+      new_password: newPassword,
+    });
+    return res.data.message;
+  };
+
   const setLLMKey = async (provider: string, modelName: string, apiKey: string) => {
     const res = await apiClient.post<LLMKeyStatus>('/llm-key/set', {
       provider,
@@ -166,6 +182,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signup,
         verifyOtp,
         resendOtp,
+        forgotPassword,
+        resetPassword,
         setLLMKey,
         connectBinance,
         logout,

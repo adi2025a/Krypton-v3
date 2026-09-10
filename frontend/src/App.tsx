@@ -4,8 +4,7 @@ import { AuthPage } from './components/auth/AuthPage';
 import { LLMSetupModal } from './components/onboarding/LLMSetupModal';
 import { BinanceSetupModal } from './components/onboarding/BinanceSetupModal';
 import { Navbar } from './components/layout/Navbar';
-import { Sidebar } from './components/layout/Sidebar';
-import type { NavTab } from './components/layout/Sidebar';
+import type { NavTab } from './components/layout/Navbar';
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { NewsPage } from './pages/NewsPage';
@@ -44,23 +43,17 @@ const MainAppContent: React.FC = () => {
       {showBinanceSetup && <BinanceSetupModal />}
 
       {/* Top Navbar */}
-      <Navbar currentTab={activeTab} />
+      <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Main Container */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
-        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-
-        {/* Content View */}
-        <main className="flex-1 overflow-y-auto bg-gradient-to-b from-[#090d16] to-[#060911]">
-          {activeTab === 'dashboard' && <DashboardPage />}
-          {activeTab === 'news' && <NewsPage />}
-          {activeTab === 'indicators' && <IndicatorsPage />}
-          {activeTab === 'risk' && <RiskPage />}
-          {activeTab === 'chat' && <ChatPage />}
-          {activeTab === 'settings' && <SettingsPage />}
-        </main>
-      </div>
+      {/* Content View */}
+      <main className="flex-1 overflow-y-auto bg-gradient-to-b from-[#090d16] to-[#060911]">
+        {activeTab === 'dashboard' && <DashboardPage />}
+        {activeTab === 'news' && <NewsPage />}
+        {activeTab === 'indicators' && <IndicatorsPage />}
+        {activeTab === 'risk' && <RiskPage />}
+        {activeTab === 'chat' && <ChatPage />}
+        {activeTab === 'settings' && <SettingsPage />}
+      </main>
     </div>
   );
 };

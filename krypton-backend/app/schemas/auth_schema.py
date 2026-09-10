@@ -28,3 +28,13 @@ class TokenResponse(BaseModel):
 
 class ResendOTPRequest(BaseModel):
     email: EmailStr
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    otp: str = Field(min_length=4, max_length=8)
+    new_password: str = Field(min_length=8, description="Min 8 characters")

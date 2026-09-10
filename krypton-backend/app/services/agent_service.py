@@ -19,6 +19,7 @@ from app.models.integration_key import IntegrationKey
 from app.core.encryption import decrypt_value
 from app.services.llm_key_service import get_active_llm_credentials
 from app.services.binance_service import fetch_portfolio
+from app.services.news_cache_service import get_cached_news
 
 
 async def run_trading_assistant(db: AsyncSession, user_id: uuid.UUID, user_question: str | None = None) -> dict:
@@ -68,7 +69,19 @@ async def run_trading_assistant(db: AsyncSession, user_id: uuid.UUID, user_quest
             binance_connected = False
             portfolio_balances = None
 
-    # 4. Assemble initial state and run the graph.
+    # 4. News -- Postgres-cached pool, refetched from RSS only if stale
+    # (see news_cache_service). Every RSS feed failing at once is unlikely
+    # (news_service already tolerates single-feed failures internally),
+    # but if it happens, degrade the same way Binance does above: record
+    # it, don't crash the whole assistant.
+    raw_news: list[dict] = []
+    errors: list[str] = []
+    try:
+        raw_news = await get_cached_news(db)
+    except Exception as exc:
+        errors.append(f"sentiment_node: failed to fetch news: {exc}")
+
+    # 5. Assemble initial state and run the graph.
     initial_state = {
         "user_id": str(user_id),
         "symbol": symbol,
@@ -79,7 +92,8 @@ async def run_trading_assistant(db: AsyncSession, user_id: uuid.UUID, user_quest
         "llm_api_key": llm_creds["api_key"],
         "binance_connected": binance_connected,
         "portfolio_balances": portfolio_balances,
-        "errors": [],
+        "raw_news": raw_news,
+        "errors": errors,
     }
 
     result = await agent_graph.ainvoke(initial_state)

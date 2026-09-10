@@ -9,7 +9,7 @@ from app.database.session import get_db
 from app.core.security import get_current_user_id
 from app.models.chart_context import ChartContext
 from app.schemas.news import NewsFeedResponse, NewsItem
-from app.services.news_service import fetch_all_news
+from app.services.news_cache_service import get_cached_news
 from app.services.news_ranking_service import rank_news_for_symbol
 from app.services.sentiment_service import score_sentiment
 
@@ -30,7 +30,7 @@ async def get_news_feed(
         context = result.scalar_one_or_none()
         symbol = context.symbol if context else "BTCUSDT"
 
-    all_news = await fetch_all_news()
+    all_news = await get_cached_news(db)
     max_count = limit if (limit and limit > 0) else 20
     top_items = rank_news_for_symbol(all_news, symbol, max_results=max_count)
 

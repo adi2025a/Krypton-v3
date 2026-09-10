@@ -30,6 +30,12 @@ class AgentState(TypedDict):
     llm_model_name: Optional[str]
     llm_api_key: Optional[str]
 
+    # --- filled in ONCE at graph entry, same pattern as llm_api_key/
+    #     portfolio_balances: the Postgres-cached news pool is read (and
+    #     refreshed if stale) before the graph runs, so sentiment_node
+    #     never needs a DB session of its own. ---
+    raw_news: Optional[list[dict]]
+
     # --- filled in by market_analysis_node ---
     indicators: Optional[dict]
 

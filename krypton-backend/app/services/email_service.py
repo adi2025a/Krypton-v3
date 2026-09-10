@@ -87,3 +87,18 @@ async def send_otp_email(to_email: str, otp: str) -> None:
     except Exception as e:
         logger.error(f"Failed to send OTP email to {to_email}: {e}")
         logger.warning(f"[FALLBACK LOG] Verification OTP for {to_email} is: {otp}")
+
+
+async def send_password_reset_email(to_email: str, otp: str) -> None:
+    subject = "Reset your Krypton password"
+    body = (
+        f"Your password reset code is: {otp}\n"
+        f"It expires in {settings.OTP_EXPIRE_MINUTES} minutes.\n"
+        f"If you didn't request this, you can safely ignore this email."
+    )
+    try:
+        await asyncio.to_thread(_send_email_sync, to_email, subject, body)
+        logger.info(f"Successfully sent password reset email to {to_email}")
+    except Exception as e:
+        logger.error(f"Failed to send password reset email to {to_email}: {e}")
+        logger.warning(f"[FALLBACK LOG] Password reset OTP for {to_email} is: {otp}")

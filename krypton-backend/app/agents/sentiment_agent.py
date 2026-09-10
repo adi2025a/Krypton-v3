@@ -9,7 +9,6 @@ reason over (not 5 raw headlines re-pasted into a prompt).
 """
 
 from app.agents.state import AgentState
-from app.services.news_service import fetch_all_news
 from app.services.news_ranking_service import rank_news_for_symbol
 from app.services.sentiment_service import score_sentiment
 
@@ -49,14 +48,7 @@ def _build_sentiment_summary(scored_items: list[dict]) -> dict:
 
 async def sentiment_node(state: AgentState) -> dict:
     symbol = state["symbol"]
-
-    try:
-        all_news = await fetch_all_news()
-    except Exception as exc:
-        # Every RSS feed failing is unlikely (news_service already tolerates
-        # single-feed failures internally) but if it happens, degrade the
-        # same way market_analysis_node does -- record it, don't crash.
-        return {"errors": [f"sentiment_node: failed to fetch news: {exc}"]}
+    all_news = state.get("raw_news") or []
 
     top_items = rank_news_for_symbol(all_news, symbol, max_results=5)
 

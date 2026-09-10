@@ -1,23 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage } from '../../utils/error';
-import { ShieldCheck, Mail, Lock, KeyRound, ArrowRight, RefreshCw, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, KeyRound, ArrowRight, RefreshCw, Sparkles, CheckCircle2, AlertCircle, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+type AuthView = 'auth' | 'otp' | 'forgot' | 'reset';
+
 export const AuthPage: React.FC = () => {
-  const { login, signup, verifyOtp, resendOtp, setShowLLMSetup, setShowBinanceSetup } = useAuth();
+  const { login, signup, verifyOtp, resendOtp, forgotPassword, resetPassword, setShowLLMSetup, setShowBinanceSetup } = useAuth();
 
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [otp, setOtp] = useState<string>('');
-  
-  // State for OTP step
-  const [isOtpStep, setIsOtpStep] = useState<boolean>(false);
+
+  // Which screen of the auth flow is showing
+  const [view, setView] = useState<AuthView>('auth');
   const [signupMessage, setSignupMessage] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Password reset step state
+  const [resetOtp, setResetOtp] = useState<string>('');
+  const [newPassword, setNewPassword] = useState<string>('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState<string>('');
 
   // OTP resend timer
   const [resendCooldown, setResendCooldown] = useState<number>(0);
@@ -48,7 +55,7 @@ export const AuthPage: React.FC = () => {
         // 2. Signup flow
         const msg = await signup(cleanEmail, password);
         setSignupMessage(msg || 'OTP sent to your email.');
-        setIsOtpStep(true);
+        setView('otp');
         setResendCooldown(30);
       }
     } catch (err: any) {
@@ -73,7 +80,7 @@ export const AuthPage: React.FC = () => {
       
       // Auto login after verify
       await login(cleanEmail, password);
-      setIsOtpStep(false);
+      setView('auth');
       setShowLLMSetup(true); // Open LLM key input modal for signup
       setShowBinanceSetup(true); // Optional next step
     } catch (err: any) {
@@ -98,6 +105,74 @@ export const AuthPage: React.FC = () => {
       setResendCooldown(60);
     } catch (err: any) {
       setError(getErrorMessage(err, 'Failed to resend OTP'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMsg(null);
+    setLoading(true);
+
+    const cleanEmail = email.trim();
+
+    try {
+      const msg = await forgotPassword(cleanEmail);
+      setSignupMessage(msg || `If an account exists for ${cleanEmail}, a reset code has been sent.`);
+      setView('reset');
+      setResendCooldown(30);
+    } catch (err: any) {
+      setError(getErrorMessage(err, 'Failed to send reset code'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendResetOtp = async () => {
+    if (resendCooldown > 0) return;
+    setError(null);
+    setSuccessMsg(null);
+    setLoading(true);
+
+    const cleanEmail = email.trim();
+
+    try {
+      const msg = await forgotPassword(cleanEmail);
+      setSuccessMsg(msg || 'A new reset code has been sent to your email.');
+      setResendCooldown(60);
+    } catch (err: any) {
+      setError(getErrorMessage(err, 'Failed to resend reset code'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMsg(null);
+
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setLoading(true);
+    const cleanEmail = email.trim();
+
+    try {
+      await resetPassword(cleanEmail, resetOtp, newPassword);
+      setSuccessMsg('Password reset successfully! You can now log in.');
+      setPassword('');
+      setResetOtp('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setIsLogin(true);
+      setView('auth');
+    } catch (err: any) {
+      setError(getErrorMessage(err, 'Invalid or expired reset code'));
     } finally {
       setLoading(false);
     }
@@ -154,7 +229,7 @@ export const AuthPage: React.FC = () => {
           )}
 
           <AnimatePresence mode="wait">
-            {!isOtpStep ? (
+            {view === 'auth' ? (
               /* LOGIN / SIGNUP FORM */
               <motion.div
                 key="auth-form"
@@ -220,6 +295,18 @@ export const AuthPage: React.FC = () => {
                     </div>
                   </div>
 
+                  {isLogin && (
+                    <div className="flex justify-end -mt-1">
+                      <button
+                        type="button"
+                        onClick={() => { setError(null); setSuccessMsg(null); setView('forgot'); }}
+                        className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                  )}
+
                   <button
                     type="submit"
                     disabled={loading}
@@ -236,7 +323,7 @@ export const AuthPage: React.FC = () => {
                   </button>
                 </form>
               </motion.div>
-            ) : (
+            ) : view === 'otp' ? (
               /* OTP VERIFICATION STEP */
               <motion.div
                 key="otp-form"
@@ -290,7 +377,7 @@ export const AuthPage: React.FC = () => {
                 <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-xs">
                   <button
                     type="button"
-                    onClick={() => setIsOtpStep(false)}
+                    onClick={() => setView('auth')}
                     className="text-slate-400 hover:text-white transition-colors"
                   >
                     ← Back to Sign Up
@@ -304,6 +391,175 @@ export const AuthPage: React.FC = () => {
                   >
                     <RefreshCw className="w-3 h-3" />
                     <span>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend OTP'}</span>
+                  </button>
+                </div>
+              </motion.div>
+            ) : view === 'forgot' ? (
+              /* FORGOT PASSWORD: REQUEST RESET CODE */
+              <motion.div
+                key="forgot-form"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="text-center mb-6">
+                  <div className="w-12 h-12 bg-indigo-500/20 rounded-2xl border border-indigo-500/40 flex items-center justify-center mx-auto mb-3">
+                    <KeyRound className="w-6 h-6 text-indigo-400" />
+                  </div>
+                  <h2 className="text-xl font-bold text-white">Reset Your Password</h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Enter your account email and we'll send you a reset code.
+                  </p>
+                </div>
+
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                      Email Address
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="trader@krypton.ai"
+                        className="w-full pl-10 pr-4 py-3 rounded-xl glass-input text-sm focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full mt-2 py-3.5 px-4 bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <span>Send Reset Code</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-center text-xs">
+                  <button
+                    type="button"
+                    onClick={() => { setError(null); setSuccessMsg(null); setView('auth'); }}
+                    className="text-slate-400 hover:text-white transition-colors flex items-center gap-1"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    Back to Log In
+                  </button>
+                </div>
+              </motion.div>
+            ) : (
+              /* RESET PASSWORD: OTP + NEW PASSWORD */
+              <motion.div
+                key="reset-form"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="text-center mb-6">
+                  <div className="w-12 h-12 bg-indigo-500/20 rounded-2xl border border-indigo-500/40 flex items-center justify-center mx-auto mb-3">
+                    <ShieldCheck className="w-6 h-6 text-indigo-400" />
+                  </div>
+                  <h2 className="text-xl font-bold text-white">Set a New Password</h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {signupMessage || `We sent a reset code to ${email}`}
+                  </p>
+                </div>
+
+                <form onSubmit={handleResetPassword} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2 text-center">
+                      6-Digit Reset Code
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      value={resetOtp}
+                      onChange={(e) => setResetOtp(e.target.value.trim())}
+                      placeholder="123456"
+                      className="w-full py-3.5 text-center text-2xl font-mono tracking-[0.5em] rounded-xl glass-input focus:border-cyan-400 text-cyan-300"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                      New Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                      <input
+                        type="password"
+                        required
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="••••••••••••"
+                        className="w-full pl-10 pr-4 py-3 rounded-xl glass-input text-sm focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                      Confirm New Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                      <input
+                        type="password"
+                        required
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        placeholder="••••••••••••"
+                        className="w-full pl-10 pr-4 py-3 rounded-xl glass-input text-sm focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading || resetOtp.length < 6}
+                    className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-5 h-5" />
+                        <span>Reset Password</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-xs">
+                  <button
+                    type="button"
+                    onClick={() => { setError(null); setSuccessMsg(null); setView('forgot'); }}
+                    className="text-slate-400 hover:text-white transition-colors"
+                  >
+                    ← Back
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleResendResetOtp}
+                    disabled={resendCooldown > 0 || loading}
+                    className="text-indigo-400 hover:text-indigo-300 font-semibold disabled:opacity-40 flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}</span>
                   </button>
                 </div>
               </motion.div>
