@@ -947,7 +947,7 @@ wheels = [
 ]
 
 [[package]]
-name = "krypton-backend"
+name = "krypton"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
