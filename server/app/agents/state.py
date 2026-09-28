@@ -13,7 +13,7 @@ time `synthesis_node` runs, it reads whichever fields are populated
 and builds the final answer from whatever's actually available.
 """
 
-from typing import TypedDict, Optional, Annotated
+from typing import TypedDict, Optional, Annotated, Any
 import operator
 
 
@@ -22,6 +22,11 @@ class AgentState(TypedDict):
     user_id: str
     symbol: str
     timeframe: str
+    user_question: Optional[str]
+    history: Optional[list[dict]]  # [{"role": "user"|"assistant", "content": "..."}]
+    intent: Optional[str]  # "general" | "market"
+    token_queue: Optional[Any]  # Optional asyncio.Queue for streaming tokens
+
     binance_connected: bool
     binance_api_key: Optional[str]
     binance_api_secret: Optional[str]

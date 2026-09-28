@@ -25,30 +25,48 @@ it doesn't, so the simpler unconditional wiring is the right call here.
 from langgraph.graph import StateGraph, START, END
 
 from app.agents.state import AgentState
+from app.agents.intent_router import intent_router_node
 from app.agents.market_analysis_agent import market_analysis_node
 from app.agents.sentiment_agent import sentiment_node
 from app.agents.risk_agent import risk_node
 from app.agents.synthesis_agent import synthesis_node
 
 
+def route_by_intent(state: AgentState) -> list[str]:
+    """
+    Directs general/conversational queries straight to synthesis, bypassing
+    data gathering. Directs market/strategy queries to parallel data nodes.
+    """
+    if state.get("intent") == "general":
+        return ["synthesis"]
+    return ["market_analysis", "sentiment", "risk"]
+
+
 def build_agent_graph():
     builder = StateGraph(AgentState)
 
+    builder.add_node("router", intent_router_node)
     builder.add_node("market_analysis", market_analysis_node)
     builder.add_node("sentiment", sentiment_node)
     builder.add_node("risk", risk_node)
     builder.add_node("synthesis", synthesis_node)
 
-    # Fan-out from START: these three run in parallel.
-    builder.add_edge(START, "market_analysis")
-    builder.add_edge(START, "sentiment")
-    builder.add_edge(START, "risk")
+    # 1. Entry point: evaluate intent
+    builder.add_edge(START, "router")
 
-    # Fan-in: synthesis only runs once ALL three above have completed.
+    # 2. Dynamic conditional branch based on user intent
+    builder.add_conditional_edges(
+        "router",
+        route_by_intent,
+        ["synthesis", "market_analysis", "sentiment", "risk"],
+    )
+
+    # 3. Fan-in: parallel data nodes converge into synthesis
     builder.add_edge("market_analysis", "synthesis")
     builder.add_edge("sentiment", "synthesis")
     builder.add_edge("risk", "synthesis")
 
+    # 4. Synthesis terminates the graph
     builder.add_edge("synthesis", END)
 
     return builder.compile()

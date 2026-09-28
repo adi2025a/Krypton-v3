@@ -99,6 +99,7 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   metadata?: {
+    intent?: string;
     indicators?: any;
     news_items?: any[];
     sentiment_summary?: any;

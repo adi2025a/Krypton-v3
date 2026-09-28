@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import apiClient from '../api/client';
+import { API_BASE_URL } from '../api/client';
 import type { ChatMessage } from '../types';
-import { MessageSquareCode, Send, Sparkles, RefreshCw, Cpu, User, ChevronDown, ChevronUp, Activity, Newspaper, ShieldAlert } from 'lucide-react';
+import { MessageSquareCode, Send, Sparkles, RefreshCw, Cpu, User, ChevronDown, ChevronUp, Activity, Newspaper, ShieldAlert, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const ChatPage: React.FC = () => {
@@ -36,37 +36,116 @@ export const ChatPage: React.FC = () => {
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    // Extract recent non-system turns for multi-turn conversation memory
+    const historyPayload = messages
+      .filter((m) => m.id !== 'welcome' && !m.id.startsWith('err-') && m.content.trim())
+      .slice(-6)
+      .map((m) => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: m.content,
+      }));
+
+    const assistantId = `assistant-${Date.now()}`;
+    const initialAssistantMsg: ChatMessage = {
+      id: assistantId,
+      sender: 'assistant',
+      content: '',
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMsg, initialAssistantMsg]);
     if (!customText) setInputMessage('');
     setLoading(true);
 
+    const token = localStorage.getItem('krypton_token');
+
     try {
-      const res = await apiClient.post('/agent/chat', { message: textToSend });
-      const data = res.data;
-
-      const botMsg: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        sender: 'assistant',
-        content: data.final_response || 'No response generated.',
-        timestamp: new Date(),
-        metadata: {
-          indicators: data.indicators,
-          news_items: data.news_items,
-          sentiment_summary: data.sentiment_summary,
-          risk_profile: data.risk_profile,
+      const response = await fetch(`${API_BASE_URL}/agent/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      };
+        body: JSON.stringify({
+          message: textToSend,
+          history: historyPayload,
+        }),
+      });
 
-      setMessages((prev) => [...prev, botMsg]);
+      if (!response.ok) {
+        const errorJson = await response.json().catch(() => ({}));
+        throw new Error(errorJson.detail || `Server returned ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let accumulatedText = '';
+
+      if (reader) {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6).trim();
+              if (!dataStr) continue;
+              try {
+                const payload = JSON.parse(dataStr);
+                if (payload.type === 'token') {
+                  accumulatedText += payload.delta;
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === assistantId ? { ...msg, content: accumulatedText } : msg
+                    )
+                  );
+                } else if (payload.type === 'done') {
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === assistantId
+                        ? {
+                            ...msg,
+                            content: payload.final_response || accumulatedText,
+                            metadata: {
+                              intent: payload.intent,
+                              indicators: payload.indicators,
+                              news_items: payload.news_items,
+                              sentiment_summary: payload.sentiment_summary,
+                              risk_profile: payload.risk_profile,
+                            },
+                          }
+                        : msg
+                    )
+                  );
+                } else if (payload.type === 'error') {
+                  throw new Error(payload.error);
+                }
+              } catch (parseErr: any) {
+                if (parseErr.message && !parseErr.message.includes('JSON')) {
+                  throw parseErr;
+                }
+              }
+            }
+          }
+        }
+      }
     } catch (err: any) {
-      const errText = err.response?.data?.detail || err.message || 'Failed to communicate with LLM agent';
-      const botErr: ChatMessage = {
-        id: `err-${Date.now()}`,
-        sender: 'assistant',
-        content: `⚠️ Error: ${errText}. Please verify your LLM API Key in Settings.`,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, botErr]);
+      const errText = err.message || 'Failed to communicate with LLM agent';
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantId
+            ? {
+                ...msg,
+                content: `⚠️ Error: ${errText}. Please verify your LLM API Key in Settings.`,
+              }
+            : msg
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -82,38 +161,103 @@ export const ChatPage: React.FC = () => {
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const assistantId = `assistant-strat-${Date.now()}`;
+    const initialAssistantMsg: ChatMessage = {
+      id: assistantId,
+      sender: 'assistant',
+      content: '',
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMsg, initialAssistantMsg]);
     setLoading(true);
 
+    const token = localStorage.getItem('krypton_token');
+
     try {
-      const res = await apiClient.post('/agent/strategy', {});
-      const data = res.data;
-
-      const botMsg: ChatMessage = {
-        id: `assistant-strat-${Date.now()}`,
-        sender: 'assistant',
-        content: data.final_response || 'Strategy generated.',
-        timestamp: new Date(),
-        metadata: {
-          indicators: data.indicators,
-          news_items: data.news_items,
-          sentiment_summary: data.sentiment_summary,
-          risk_profile: data.risk_profile,
+      const response = await fetch(`${API_BASE_URL}/agent/strategy/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      };
+        body: JSON.stringify({}),
+      });
 
-      setMessages((prev) => [...prev, botMsg]);
+      if (!response.ok) {
+        const errorJson = await response.json().catch(() => ({}));
+        throw new Error(errorJson.detail || `Server returned ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let accumulatedText = '';
+
+      if (reader) {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6).trim();
+              if (!dataStr) continue;
+              try {
+                const payload = JSON.parse(dataStr);
+                if (payload.type === 'token') {
+                  accumulatedText += payload.delta;
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === assistantId ? { ...msg, content: accumulatedText } : msg
+                    )
+                  );
+                } else if (payload.type === 'done') {
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === assistantId
+                        ? {
+                            ...msg,
+                            content: payload.final_response || accumulatedText,
+                            metadata: {
+                              intent: payload.intent,
+                              indicators: payload.indicators,
+                              news_items: payload.news_items,
+                              sentiment_summary: payload.sentiment_summary,
+                              risk_profile: payload.risk_profile,
+                            },
+                          }
+                        : msg
+                    )
+                  );
+                } else if (payload.type === 'error') {
+                  throw new Error(payload.error);
+                }
+              } catch (parseErr: any) {
+                if (parseErr.message && !parseErr.message.includes('JSON')) {
+                  throw parseErr;
+                }
+              }
+            }
+          }
+        }
+      }
     } catch (err: any) {
-      const errText = err.response?.data?.detail || err.message || 'Strategy synthesis failed';
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `err-${Date.now()}`,
-          sender: 'assistant',
-          content: `⚠️ Strategy Error: ${errText}`,
-          timestamp: new Date(),
-        },
-      ]);
+      const errText = err.message || 'Strategy synthesis failed';
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantId
+            ? {
+                ...msg,
+                content: `⚠️ Strategy Error: ${errText}`,
+              }
+            : msg
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -174,8 +318,27 @@ export const ChatPage: React.FC = () => {
                   ? 'bg-indigo-600 text-white rounded-tr-none shadow-lg shadow-indigo-600/20 border border-indigo-400/30'
                   : 'glass-panel text-slate-100 rounded-tl-none border border-white/10 shadow-xl'
               }`}>
+                {!isUser && msg.metadata?.intent && (
+                  <div className="flex items-center gap-1.5 pb-1">
+                    {msg.metadata.intent === 'general' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <Zap className="w-3 h-3" /> Quick Knowledge
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                        <Sparkles className="w-3 h-3 text-cyan-400" /> Deep Confluence Read
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 <div className="text-sm leading-relaxed whitespace-pre-wrap font-sans">
-                  {msg.content}
+                  {msg.content || (loading && !isUser ? (
+                    <span className="inline-flex items-center gap-1 text-slate-400 text-xs italic">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping inline-block mr-1" />
+                      Synthesizing intelligence...
+                    </span>
+                  ) : '')}
                 </div>
 
                 {!isUser && hasMetadata && (
@@ -224,7 +387,9 @@ export const ChatPage: React.FC = () => {
                               <div className="font-bold text-amber-400 flex items-center gap-1 mb-1">
                                 <ShieldAlert className="w-3 h-3" /> Risk Evaluation:
                               </div>
-                              <div className="text-slate-300">Dominant Asset: {msg.metadata.risk_profile.concentration_risk?.dominant_asset}</div>
+                              <div className="text-slate-300">
+                                Dominant Asset: <strong className="text-white">{msg.metadata.risk_profile.concentration?.asset || 'None'}</strong> ({msg.metadata.risk_profile.concentration?.pct_of_portfolio || 0}%) · Volatility: {msg.metadata.risk_profile.volatility?.label || 'N/A'} · Risk Score: {msg.metadata.risk_profile.overall_risk_score || 0}/100 ({msg.metadata.risk_profile.overall_risk_label || 'N/A'})
+                              </div>
                             </div>
                           )}
                         </motion.div>
