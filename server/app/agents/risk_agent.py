@@ -19,6 +19,7 @@ Two layers of defense against this running without data:
 
 from app.agents.state import AgentState
 from app.services.risk_service import compute_risk_profile
+from app.services.binance_service import fetch_portfolio
 
 
 async def risk_node(state: AgentState) -> dict:
@@ -26,8 +27,19 @@ async def risk_node(state: AgentState) -> dict:
         return {}  # no-op: risk_profile stays whatever it already was (None)
 
     balances = state.get("portfolio_balances")
+    if balances is None:
+        api_key = state.get("binance_api_key")
+        api_secret = state.get("binance_api_secret")
+        if api_key and api_secret:
+            try:
+                balances = await fetch_portfolio(api_key, api_secret)
+            except Exception as exc:
+                return {"errors": [f"risk_node: failed to fetch Binance balances: {exc}"]}
+        else:
+            return {"errors": ["risk_node: Binance marked connected but credentials missing"]}
+
     if not balances:
-        return {"errors": ["risk_node: Binance marked connected but no portfolio balances were provided"]}
+        return {"risk_profile": None}
 
     try:
         risk_profile = await compute_risk_profile(
@@ -35,6 +47,6 @@ async def risk_node(state: AgentState) -> dict:
             symbol=state["symbol"],
             timeframe=state["timeframe"],
         )
-        return {"risk_profile": risk_profile}
+        return {"risk_profile": risk_profile, "portfolio_balances": balances}
     except Exception as exc:
         return {"errors": [f"risk_node failed: {exc}"]}

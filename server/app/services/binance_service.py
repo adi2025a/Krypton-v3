@@ -54,11 +54,22 @@ async def validate_binance_key(api_key: str, api_secret: str) -> bool:
         return False
 
 
+_portfolio_cache: dict[str, tuple[float, list[dict]]] = {}
+PORTFOLIO_CACHE_TTL = 30.0  # seconds
+
+
 async def fetch_portfolio(api_key: str, api_secret: str) -> list[dict]:
     """
     Returns non-zero balances only -- Binance accounts list every asset
     ever supported, most of them zero, which is noise for a "portfolio" view.
+    Cached for 30 seconds per API key to eliminate redundant network roundtrips.
     """
+    now = time.time()
+    if api_key in _portfolio_cache:
+        cached_time, cached_balances = _portfolio_cache[api_key]
+        if now - cached_time < PORTFOLIO_CACHE_TTL:
+            return cached_balances
+
     resp = await _signed_get("/api/v3/account", api_key, api_secret)
     resp.raise_for_status()
     data = resp.json()
@@ -69,4 +80,6 @@ async def fetch_portfolio(api_key: str, api_secret: str) -> list[dict]:
         locked = float(entry["locked"])
         if free > 0 or locked > 0:
             balances.append({"asset": entry["asset"], "free": free, "locked": locked})
+
+    _portfolio_cache[api_key] = (now, balances)
     return balances

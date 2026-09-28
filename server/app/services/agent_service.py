@@ -18,7 +18,6 @@ from app.models.chart_context import ChartContext
 from app.models.integration_key import IntegrationKey
 from app.core.encryption import decrypt_value
 from app.services.llm_key_service import get_active_llm_credentials
-from app.services.binance_service import fetch_portfolio
 from app.services.news_cache_service import get_cached_news
 
 
@@ -44,7 +43,8 @@ async def run_trading_assistant(db: AsyncSession, user_id: uuid.UUID, user_quest
             "errors": ["No active/valid LLM key for this user"],
         }
 
-    # 3. Binance -- optional. Only fetch balances if actually connected.
+    # 3. Binance -- optional. Decrypt credentials so risk_node can fetch
+    # balances concurrently in parallel with market_analysis and sentiment nodes.
     binance_result = await db.execute(
         select(IntegrationKey).where(
             IntegrationKey.user_id == user_id,
@@ -55,25 +55,18 @@ async def run_trading_assistant(db: AsyncSession, user_id: uuid.UUID, user_quest
     binance_key = binance_result.scalar_one_or_none()
 
     binance_connected = False
-    portfolio_balances = None
+    binance_api_key = None
+    binance_api_secret = None
     if binance_key is not None:
         try:
-            api_key = decrypt_value(binance_key.encrypted_api_key)
-            api_secret = decrypt_value(binance_key.encrypted_api_secret)
-            portfolio_balances = await fetch_portfolio(api_key, api_secret)
+            binance_api_key = decrypt_value(binance_key.encrypted_api_key)
+            binance_api_secret = decrypt_value(binance_key.encrypted_api_secret)
             binance_connected = True
         except Exception:
-            # Binance connection exists but fetching balances failed right
-            # now (e.g. Binance API hiccup) -- treat as "not connected for
-            # THIS request" rather than crashing the whole assistant.
             binance_connected = False
-            portfolio_balances = None
 
     # 4. News -- Postgres-cached pool, refetched from RSS only if stale
-    # (see news_cache_service). Every RSS feed failing at once is unlikely
-    # (news_service already tolerates single-feed failures internally),
-    # but if it happens, degrade the same way Binance does above: record
-    # it, don't crash the whole assistant.
+    # (see news_cache_service).
     raw_news: list[dict] = []
     errors: list[str] = []
     try:
@@ -91,7 +84,9 @@ async def run_trading_assistant(db: AsyncSession, user_id: uuid.UUID, user_quest
         "llm_model_name": llm_creds["model_name"],
         "llm_api_key": llm_creds["api_key"],
         "binance_connected": binance_connected,
-        "portfolio_balances": portfolio_balances,
+        "binance_api_key": binance_api_key,
+        "binance_api_secret": binance_api_secret,
+        "portfolio_balances": None,
         "raw_news": raw_news,
         "errors": errors,
     }

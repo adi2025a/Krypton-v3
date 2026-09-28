@@ -16,7 +16,7 @@ meaningless without knowing the user's actual holdings.
 import asyncio
 import statistics
 
-from app.services.market_data_service import fetch_ohlcv, fetch_price_in_usdt
+from app.services.market_data_service import fetch_ohlcv, fetch_prices_in_usdt
 
 
 async def compute_portfolio_value(balances: list[dict]) -> dict:
@@ -25,8 +25,7 @@ async def compute_portfolio_value(balances: list[dict]) -> dict:
     Returns total USDT value + per-asset breakdown with % of portfolio.
     """
     unique_assets = list({b["asset"] for b in balances})
-    prices = await asyncio.gather(*[fetch_price_in_usdt(a) for a in unique_assets])
-    price_map = dict(zip(unique_assets, prices))
+    price_map = await fetch_prices_in_usdt(unique_assets)
 
     breakdown = []
     total_value = 0.0

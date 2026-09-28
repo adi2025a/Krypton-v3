@@ -23,6 +23,8 @@ class AgentState(TypedDict):
     symbol: str
     timeframe: str
     binance_connected: bool
+    binance_api_key: Optional[str]
+    binance_api_secret: Optional[str]
 
     # --- LLM credentials for the synthesis node (fetched once at entry,
     #     so we don't hit the DB/decrypt repeatedly inside the graph) ---
