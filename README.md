@@ -3,8 +3,8 @@
 A full-stack app that pairs a FastAPI backend with a React/TypeScript frontend to deliver OTP-verified auth, encrypted BYO-LLM key management, optional Binance portfolio integration, live technical indicators, news sentiment analysis, and a LangGraph multi-agent system that synthesizes it all into natural-language trading commentary.
 
 This README ties the two halves together. For deep dives, see:
-- [`krypton-backend/README.md`](#backend-readme) — FastAPI, LangGraph, database schema, full API reference
-- [`frontend/README.md`](#frontend-readme) — React pages, routing state machine, `api.ts` client layer
+- [`server/README.md`](server/README.md) — FastAPI, LangGraph, database schema, full API reference
+- [`client/README.md`](client/README.md) — React pages, routing state machine, `api.ts` client layer
 
 ---
 
@@ -237,7 +237,7 @@ If any node fails (e.g. a Binance API hiccup), it's recorded in `errors` rather 
 
 ```
 project-root/
-├── backend/
+├── server/
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── core/            # config, security, encryption
@@ -247,18 +247,23 @@ project-root/
 │   │   ├── routers/         # REST endpoints
 │   │   ├── services/        # deterministic business logic
 │   │   └── agents/          # LangGraph nodes + graph.py
+│   ├── Dockerfile
+│   ├── pyproject.toml
 │   └── README.md
 │
-└── frontend/
+└── client/
     ├── src/
-    │   ├── config/
-    │   │   └── api.ts        # single typed client for the whole backend
+    │   ├── api/
+    │   │   └── client.ts    # single typed client for the whole backend
     │   └── pages/
-    │       ├── App.tsx        # page router / state machine
-    │       ├── AuthPage.tsx
-    │       ├── LLMSetupPage.tsx
-    │       ├── BinanceSetupPage.tsx
-    │       └── DashboardPage.tsx
+    │       ├── DashboardPage.tsx
+    │       ├── IndicatorsPage.tsx
+    │       ├── NewsPage.tsx
+    │       ├── RiskPage.tsx
+    │       ├── ChatPage.tsx
+    │       └── SettingsPage.tsx
+    ├── package.json
+    ├── vite.config.ts
     └── README.md
 ```
 
@@ -266,23 +271,21 @@ project-root/
 
 ## Local Setup — Full Stack
 
-### 1. Backend
+### 1. Server (Backend)
 ```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+cd server
+uv sync
 cp .env.example .env    # fill in DATABASE_URL, JWT_SECRET_KEY, ENCRYPTION_KEY, SMTP_*
-alembic upgrade head
-uvicorn app.main:app --reload
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
 ```
 Runs at `http://127.0.0.1:8000`, docs at `/docs`.
 
-### 2. Frontend
+### 2. Client (Frontend)
 ```bash
-cd frontend
+cd client
 npm install
-echo "VITE_API_BASE_URL=http://127.0.0.1:8000" > .env.local
+cp .env.example .env    # or set VITE_API_URL=http://localhost:8000
 npm run dev
 ```
 Runs at `http://localhost:5173`.

@@ -301,17 +301,14 @@ All routes except `/auth/*` and `/health` require `Authorization: Bearer <token>
 
 ## Setup & Configuration
 
-### 1. Clone and create a virtual environment
+### 1. Navigate to server directory
 ```bash
-git clone <your-repo-url> krypton-backend
-cd krypton-backend
-python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+cd server
 ```
 
 ### 2. Install dependencies
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 3. Configure environment variables
